@@ -9,6 +9,18 @@ services:
       - redis-main-data:/data
     restart: unless-stopped
 
+  redixis-api:
+    build:
+      context: .
+    container_name: redixis-api
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_ADDR=redis-main:6379
+    depends_on:
+      - redis-main
+    restart: unless-stopped
+
   # redis-cluster:
   #   image: redis:8.4.2-alpine@sha256:f08de4b9a28a18f804b650c41a44c65917ab2da69c9b08ed8b11b2633547f4ea
   #   container_name: redis-cluster
@@ -18,6 +30,29 @@ services:
   #     - redis-cluster-data:/data
   #   restart: unless-stopped
 
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - 9090:9090
+    depends_on:
+      - redixis-api
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:11.3.0
+    volumes:
+      - ./grafana.yml:/etc/grafana/provisioning/datasources/datasource.yaml
+      - grafana-data:/var/lib/grafana
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=password
+
 volumes:
   redis-main-data:
   redis-cluster-data:
+  grafana-data:
