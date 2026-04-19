@@ -1,0 +1,9 @@
+.git
+.codex
+tmp
+*.log
+dashboard.json
+grafana-data
+redis-auth-data
+redis-tenant-data
+README.md

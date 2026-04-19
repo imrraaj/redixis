@@ -1,0 +1,53 @@
+# Binaries
+redixis
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Build artifacts
+/out/
+/build/
+/dist/
+
+# Go
+vendor/
+go.work
+*.sum.orig
+*.mod.orig
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment
+.env
+.env.local
+
+# Test coverage
+*.cover
+*.coverage
+coverage.html
+coverage.out
+
+# Docker volumes
+auth_data/
+tenant_data/
+grafana_data/
+prometheus_data/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp

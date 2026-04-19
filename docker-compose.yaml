@@ -1,58 +1,87 @@
 services:
-  redis-main:
-    image: redis:8.4.2-alpine@sha256:f08de4b9a28a18f804b650c41a44c65917ab2da69c9b08ed8b11b2633547f4ea
-    container_name: redis-main
+  auth_redis:
+    image: redis:8.4.2-alpine
+    container_name: auth_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass "${AUTH_REDIS_PASSWORD:-auth-dev-pass}"
     ports:
       - "6379:6379"
-    command: ["redis-server", "--appendonly", "yes"]
     volumes:
-      - redis-main-data:/data
-    restart: unless-stopped
+      - auth_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${AUTH_REDIS_PASSWORD:-auth-dev-pass}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  redixis-api:
+  tenant_redis:
+    image: redis:8.4.2-alpine
+    container_name: tenant_redis
+    restart: unless-stopped
+    command: redis-server --save "" --user default off --user redixis on ">${TENANT_REDIS_PASSWORD:-tenant-dev-pass}" "~tenant:*" "+auth" "+client" "+decr" "+del" "+get" "+hello" "+incr" "+mget" "+mset" "+ping" "+select" "+set"
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--user", "redixis", "-a", "${TENANT_REDIS_PASSWORD:-tenant-dev-pass}", "-p", "6379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redixis_api:
     build:
       context: .
-    container_name: redixis-api
+      dockerfile: Dockerfile
+      network: host
+    container_name: redixis_api
     ports:
       - "8080:8080"
     environment:
-      - REDIS_ADDR=redis-main:6379
+      - APP_ENV=${APP_ENV:-development}
+      - HTTP_ADDR=0.0.0.0:8080
+      - AUTH_REDIS_URL=redis://:${AUTH_REDIS_PASSWORD:-auth-dev-pass}@auth_redis:6379/0?pool_size=20&dial_timeout=1s&read_timeout=1s&write_timeout=1s
+      - TENANT_REDIS_URL=redis://redixis:${TENANT_REDIS_PASSWORD:-tenant-dev-pass}@tenant_redis:6379/0?pool_size=50&dial_timeout=1s&read_timeout=1s&write_timeout=1s
+      - REDIS_OPERATION_TIMEOUT=1s
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-120}
     depends_on:
-      - redis-main
+      - auth_redis
+      - tenant_redis
     restart: unless-stopped
 
-  # redis-cluster:
-  #   image: redis:8.4.2-alpine@sha256:f08de4b9a28a18f804b650c41a44c65917ab2da69c9b08ed8b11b2633547f4ea
-  #   container_name: redis-cluster
-  #   ports:
-  #     - "6380:6379"
-  #   volumes:
-  #     - redis-cluster-data:/data
-  #   restart: unless-stopped
-
   prometheus:
-    container_name: prometheus
-    image: prom/prometheus
+    image: prom/prometheus:v3.2.1
+    container_name: redixis_prometheus
+    restart: unless-stopped
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
     ports:
-      - 9090:9090
-    depends_on:
-      - redixis-api
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
 
   grafana:
-    container_name: grafana
     image: grafana/grafana:11.3.0
+    container_name: redixis_grafana
+    restart: unless-stopped
     volumes:
-      - ./grafana.yml:/etc/grafana/provisioning/datasources/datasource.yaml
-      - grafana-data:/var/lib/grafana
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
     ports:
-      - 3000:3000
+      - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=password
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/dashboard.json
+    depends_on:
+      - prometheus
 
 volumes:
-  redis-main-data:
-  redis-cluster-data:
-  grafana-data:
+  auth_data:
+  tenant_data:
+  grafana_data:
+  prometheus_data:

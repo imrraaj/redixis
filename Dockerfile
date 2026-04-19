@@ -3,19 +3,20 @@ FROM golang:1.25-alpine AS build
 WORKDIR /src
 
 COPY go.mod go.sum ./
-RUN go mod tidy
+RUN go mod download
 
 COPY . .
-RUN go build .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/redixis ./cmd/redixis
 
 FROM alpine:3.21
 
-RUN adduser -D -H -u 10001 redixis
+RUN apk add --no-cache ca-certificates && adduser -D -H -u 10001 redixis
 
 USER redixis
+WORKDIR /app
 
-COPY --from=build /src /src
+COPY --from=build /out/redixis /app/redixis
 
 EXPOSE 8080
 
-ENTRYPOINT ["/src/redixis"]
+ENTRYPOINT ["/app/redixis"]
