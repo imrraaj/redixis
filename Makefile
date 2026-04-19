@@ -3,7 +3,7 @@ APP_BIN := ./bin/$(APP_NAME)
 COMPOSE := docker compose
 INFRA_SERVICES := auth_redis tenant_redis prometheus grafana
 
-.PHONY: help infra-up infra-down infra-logs infra-ps run build compose-build compose-up compose-down compose-logs fmt vet test check clean
+.PHONY: help infra-up infra-down infra-logs infra-ps run build compose-build compose-up compose-down compose-logs fmt vet test check clean bench bench-direct bench-redixis bench-compare bench-k6-load bench-k6-crash
 
 help:
 	@printf '%s\n' \
@@ -21,6 +21,12 @@ help:
 		'make vet            Run go vet' \
 		'make test           Run go test' \
 		'make check          Run fmt, vet, test, and build' \
+		'make bench          Run all benchmarks (direct vs redixis)' \
+		'make bench-direct   Benchmark direct Redis operations' \
+		'make bench-redixis  Benchmark Redixis API operations' \
+		'make bench-compare  Compare both benchmarks' \
+		'make bench-k6-load  Run k6 load test (requires k6)' \
+		'make bench-k6-crash Run k6 crash test (requires k6)' \
 		'make clean          Remove local build artifacts'
 
 infra-up:
@@ -67,3 +73,28 @@ check: fmt vet test build
 
 clean:
 	rm -rf ./bin
+
+bench-direct:
+	@echo "Running direct Redis benchmarks..."
+	@go test -bench=BenchmarkDirectRedis -benchmem ./bench/...
+
+bench-redixis:
+	@echo "Running Redixis API benchmarks..."
+	@go test -bench=BenchmarkRedixis -benchmem ./bench/...
+
+bench: bench-direct bench-redixis
+
+bench-compare:
+	@echo "=== Direct Redis (baseline) ==="
+	@go test -bench=BenchmarkDirectRedis -benchmem -count=3 ./bench/...
+	@echo ""
+	@echo "=== Redixis API (with overhead) ==="
+	@go test -bench=BenchmarkRedixis -benchmem -count=3 ./bench/...
+
+bench-k6-load:
+	@echo "Running k6 load test (requires k6 installed)..."
+	@k6 run --vus 100 --duration 30s ./bench/k6_load_test.js
+
+bench-k6-crash:
+	@echo "Running k6 crash test (requires k6 installed)..."
+	@k6 run ./bench/k6_crash_test.js
