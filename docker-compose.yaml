@@ -41,7 +41,7 @@ services:
       - AUTH_REDIS_URL=redis://:${AUTH_REDIS_PASSWORD:-auth-dev-pass}@auth_redis:6379/0?pool_size=20&dial_timeout=1s&read_timeout=1s&write_timeout=1s
       - TENANT_REDIS_URL=redis://redixis:${TENANT_REDIS_PASSWORD:-tenant-dev-pass}@tenant_redis:6379/0?pool_size=50&dial_timeout=1s&read_timeout=1s&write_timeout=1s
       - REDIS_OPERATION_TIMEOUT=1s
-      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-120}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-0}
     depends_on:
       - auth_redis
       - tenant_redis

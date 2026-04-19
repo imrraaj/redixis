@@ -14,6 +14,8 @@ import (
 	"redixis/internal/httpapi"
 	"redixis/internal/observability"
 	"redixis/internal/store"
+
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -22,14 +24,18 @@ func main() {
 		Level: slog.LevelInfo,
 	}))
 
-	metrics := observability.NewPrometheus("redixis")
-
 	authRedis := store.NewRedisClient(cfg.AuthRedisURL)
 	defer authRedis.Close()
 
 	tenantRedis := store.NewRedisClient(cfg.TenantRedisURL)
 	defer tenantRedis.Close()
 
+	redisClients := map[string]*redis.Client{
+		"auth":   authRedis,
+		"tenant": tenantRedis,
+	}
+
+	metrics := observability.NewPrometheus("redixis", redisClients)
 	router := httpapi.NewRouter(httpapi.Dependencies{
 		Config:      cfg,
 		Logger:      logger,

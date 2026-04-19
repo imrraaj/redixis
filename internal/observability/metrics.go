@@ -24,6 +24,45 @@ type Recorder interface {
 	RecordAPIKeyCreation(status string, reason string)
 }
 
+type RedisHealthCollector struct {
+	redisClients map[string]*redis.Client
+	redisUp      *prometheus.GaugeVec
+}
+
+func NewRedisHealthCollector(namespace string, redisClients map[string]*redis.Client) *RedisHealthCollector {
+	return &RedisHealthCollector{
+		redisClients: redisClients,
+		redisUp: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "redis_up",
+				Help:      "Whether Redis is up (1) or down (0).",
+			},
+			[]string{"role"},
+		),
+	}
+}
+
+func (c *RedisHealthCollector) Describe(ch chan<- *prometheus.Desc) {
+	c.redisUp.Describe(ch)
+}
+
+func (c *RedisHealthCollector) Collect(ch chan<- prometheus.Metric) {
+	for role, redisClient := range c.redisClients {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_, err := redisClient.Ping(ctx).Result()
+		cancel()
+
+		if err != nil {
+			c.redisUp.WithLabelValues(role).Set(0)
+		} else {
+			c.redisUp.WithLabelValues(role).Set(1)
+		}
+	}
+
+	c.redisUp.Collect(ch)
+}
+
 type Prometheus struct {
 	registry                       *prometheus.Registry
 	httpRequestsTotal              *prometheus.CounterVec
@@ -39,7 +78,7 @@ type Prometheus struct {
 	apiKeyCreationsTotal           *prometheus.CounterVec
 }
 
-func NewPrometheus(namespace string) *Prometheus {
+func NewPrometheus(namespace string, redisClients map[string]*redis.Client) *Prometheus {
 	registry := prometheus.NewRegistry()
 
 	p := &Prometheus{
@@ -151,6 +190,10 @@ func NewPrometheus(namespace string) *Prometheus {
 		p.rateLimitRequestsTotal,
 		p.apiKeyCreationsTotal,
 	)
+
+	if len(redisClients) > 0 {
+		registry.MustRegister(NewRedisHealthCollector(namespace, redisClients))
+	}
 
 	return p
 }
