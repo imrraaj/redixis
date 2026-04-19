@@ -214,13 +214,8 @@ components:
           minItems: 1
           items:
             type: string
-        key:
-          type: array
-          deprecated: true
-          description: Backward-compatible alias for keys.
-          minItems: 1
-          items:
-            type: string
+      required:
+        - keys
     MSetRequest:
       type: object
       properties:

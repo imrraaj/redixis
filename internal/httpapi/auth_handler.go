@@ -52,9 +52,7 @@ func (h *AuthHandler) CreateAccount(c *gin.Context) {
 
 	start := time.Now()
 	err = h.client.Set(ctx, authKey(tenantID), security.HashAPIKey(apiKey), 0).Err()
-	if h.metrics != nil {
-		h.metrics.RecordRedisOperation("SET", "account_create", start, err)
-	}
+	h.metrics.RecordRedisOperation("SET", "account_create", start, err)
 	if err != nil {
 		h.metrics.RecordAPIKeyCreation("failure", "redis_error")
 		writeError(c, http.StatusInternalServerError, "account_create_failed", "could not create account")
@@ -78,9 +76,7 @@ func (h *AuthHandler) AuthenticateAPIKey(ctx context.Context, tenantID string, a
 
 	start := time.Now()
 	storedHash, err := h.client.Get(ctx, authKey(tenantID)).Result()
-	if h.metrics != nil {
-		h.metrics.RecordRedisOperation("GET", "auth", start, err)
-	}
+	h.metrics.RecordRedisOperation("GET", "auth", start, err)
 	if err != nil {
 		return false
 	}
@@ -94,8 +90,6 @@ func (h *AuthHandler) Ping(ctx context.Context) error {
 
 	start := time.Now()
 	err := h.client.Ping(ctx).Err()
-	if h.metrics != nil {
-		h.metrics.RecordRedisOperation("PING", "auth_health", start, err)
-	}
+	h.metrics.RecordRedisOperation("PING", "auth_health", start, err)
 	return err
 }

@@ -7,15 +7,11 @@ import (
 	"errors"
 	"math/big"
 	"regexp"
-	"strings"
 )
 
 const alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
-var (
-	tenantIDPattern = regexp.MustCompile(`^[A-Za-z0-9]{12,32}$`)
-	usernamePattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{2,63}$`)
-)
+var tenantIDPattern = regexp.MustCompile(`^[A-Za-z0-9]{12,32}$`)
 
 func GenerateAlphanumeric(length int) (string, error) {
 	if length <= 0 {
@@ -40,14 +36,6 @@ func GenerateTenantID() (string, error) {
 
 func GenerateAPIKey() (string, error) {
 	return GenerateAlphanumeric(40)
-}
-
-func NormalizeUsername(username string) string {
-	return strings.ToLower(strings.TrimSpace(username))
-}
-
-func ValidateUsername(username string) bool {
-	return usernamePattern.MatchString(username)
 }
 
 func ValidateTenantID(tenantID string) bool {

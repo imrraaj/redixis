@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -29,6 +28,18 @@ var allowedCommands = map[string]struct{}{
 	"MGET": {},
 	"MSET": {},
 }
+
+// rateLimitScript atomically increments the per-tenant per-minute counter and
+// sets a 2-minute TTL on the first increment. Doing both in a single Lua
+// eval prevents the key from persisting forever if the server crashes between
+// an INCR and the subsequent EXPIRE.
+var rateLimitScript = redis.NewScript(`
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+  redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return count
+`)
 
 func requestLogger(logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -111,26 +122,15 @@ func rateLimit(redisClient *redis.Client, timeout time.Duration, metrics observa
 		key := fmt.Sprintf("rate:%s:%d", tenantID, bucket)
 
 		redisStart := time.Now()
-		count, err := redisClient.Incr(ctx, key).Result()
-		metrics.RecordRedisOperation("INCR", "rate_limit", redisStart, err)
+		result, err := rateLimitScript.Run(ctx, redisClient, []string{key}, 120).Int64()
+		metrics.RecordRedisOperation("EVAL", "rate_limit", redisStart, err)
 		if err != nil {
 			metrics.RecordRateLimitDecision("error", "redis_error")
 			writeError(c, http.StatusServiceUnavailable, "rate_limit_unavailable", "rate limiter is unavailable")
 			return
 		}
 
-		if count == 1 {
-			redisStart = time.Now()
-			err = redisClient.Expire(ctx, key, 2*time.Minute).Err()
-			metrics.RecordRedisOperation("EXPIRE", "rate_limit", redisStart, err)
-			if err != nil {
-				metrics.RecordRateLimitDecision("error", "redis_error")
-				writeError(c, http.StatusServiceUnavailable, "rate_limit_unavailable", "rate limiter is unavailable")
-				return
-			}
-		}
-
-		if count > limit {
+		if result > limit {
 			metrics.RecordRateLimitDecision("rejected", "limit_exceeded")
 			writeError(c, http.StatusTooManyRequests, "rate_limited", "too many requests")
 			return
@@ -139,11 +139,4 @@ func rateLimit(redisClient *redis.Client, timeout time.Duration, metrics observa
 		metrics.RecordRateLimitDecision("allowed", "ok")
 		c.Next()
 	}
-}
-
-func redisContext(c *gin.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
-	if timeout <= 0 {
-		return context.WithCancel(c.Request.Context())
-	}
-	return context.WithTimeout(c.Request.Context(), timeout)
 }

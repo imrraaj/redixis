@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,7 +35,6 @@ type setRequest struct {
 
 type keysRequest struct {
 	Keys []string `json:"keys"`
-	Key  []string `json:"key"`
 }
 
 type msetRequest struct {
@@ -71,9 +69,6 @@ func (h *TenantHandler) HandleCommand(c *gin.Context) {
 		h.handleMGet(c, tenantID, start)
 	case "MSET":
 		h.handleMSet(c, tenantID, start)
-	default:
-		h.metrics.RecordTenantOperation(command, "unsupported_command", start)
-		writeError(c, http.StatusBadRequest, "unsupported_command", "unsupported command")
 	}
 }
 
@@ -90,7 +85,7 @@ func (h *TenantHandler) handleGet(c *gin.Context, tenantID string, start time.Ti
 		return
 	}
 
-	ctx, cancel := h.redisContext(c)
+	ctx, cancel := redisContext(c, h.timeout)
 	defer cancel()
 
 	redisStart := time.Now()
@@ -140,7 +135,7 @@ func (h *TenantHandler) handleSet(c *gin.Context, tenantID string, start time.Ti
 		duration = time.Duration(ttl) * time.Second
 	}
 
-	ctx, cancel := h.redisContext(c)
+	ctx, cancel := redisContext(c, h.timeout)
 	defer cancel()
 
 	redisStart := time.Now()
@@ -162,13 +157,13 @@ func (h *TenantHandler) handleDel(c *gin.Context, tenantID string, start time.Ti
 		return
 	}
 
-	redisKeys, err := tenantKeyNames(tenantID, normalizeKeys(req))
+	redisKeys, err := tenantKeyNames(tenantID, req.Keys)
 	if err != nil {
 		h.recordBadRequest("DEL", start, c, "invalid key")
 		return
 	}
 
-	ctx, cancel := h.redisContext(c)
+	ctx, cancel := redisContext(c, h.timeout)
 	defer cancel()
 
 	redisStart := time.Now()
@@ -196,7 +191,7 @@ func (h *TenantHandler) handleIncr(c *gin.Context, tenantID string, start time.T
 		return
 	}
 
-	ctx, cancel := h.redisContext(c)
+	ctx, cancel := redisContext(c, h.timeout)
 	defer cancel()
 
 	redisStart := time.Now()
@@ -224,7 +219,7 @@ func (h *TenantHandler) handleDecr(c *gin.Context, tenantID string, start time.T
 		return
 	}
 
-	ctx, cancel := h.redisContext(c)
+	ctx, cancel := redisContext(c, h.timeout)
 	defer cancel()
 
 	redisStart := time.Now()
@@ -246,13 +241,13 @@ func (h *TenantHandler) handleMGet(c *gin.Context, tenantID string, start time.T
 		return
 	}
 
-	redisKeys, err := tenantKeyNames(tenantID, normalizeKeys(req))
+	redisKeys, err := tenantKeyNames(tenantID, req.Keys)
 	if err != nil {
 		h.recordBadRequest("MGET", start, c, "invalid key")
 		return
 	}
 
-	ctx, cancel := h.redisContext(c)
+	ctx, cancel := redisContext(c, h.timeout)
 	defer cancel()
 
 	redisStart := time.Now()
@@ -294,7 +289,7 @@ func (h *TenantHandler) handleMSet(c *gin.Context, tenantID string, start time.T
 		items[redisKey] = value
 	}
 
-	ctx, cancel := h.redisContext(c)
+	ctx, cancel := redisContext(c, h.timeout)
 	defer cancel()
 
 	redisStart := time.Now()
@@ -307,13 +302,6 @@ func (h *TenantHandler) handleMSet(c *gin.Context, tenantID string, start time.T
 
 	h.metrics.RecordTenantOperation("MSET", "success", start)
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
-}
-
-func (h *TenantHandler) redisContext(c *gin.Context) (context.Context, context.CancelFunc) {
-	if h.timeout <= 0 {
-		return context.WithCancel(c.Request.Context())
-	}
-	return context.WithTimeout(c.Request.Context(), h.timeout)
 }
 
 func (h *TenantHandler) recordBadRequest(operation string, start time.Time, c *gin.Context, message string) {
@@ -348,13 +336,6 @@ func tenantKeyName(tenantID string, key string) (string, error) {
 		return "", errInvalidTenantKey
 	}
 	return "tenant:{" + tenantID + "}:" + key, nil
-}
-
-func normalizeKeys(req keysRequest) []string {
-	if len(req.Keys) > 0 {
-		return req.Keys
-	}
-	return req.Key
 }
 
 func rawValueToString(raw json.RawMessage) (string, error) {
