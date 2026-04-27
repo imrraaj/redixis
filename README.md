@@ -1,10 +1,12 @@
 # Redixis
 
-Redixis is a multi-tenant Redis gateway with API-key auth, command allow-listing, Prometheus metrics, and Grafana dashboards.
+Redixis is a prototype multi-tenant Redis gateway with API-key auth, command allow-listing, Prometheus metrics, and Grafana dashboards.
+
+This repository is intentionally demo-scoped. It does not implement a real user account system, signup flow, login flow, password recovery, or credential rotation. `POST /auth/account` simply mints a tenant ID and API key so the rest of the gateway can be exercised.
 
 ## Architecture
 
-- `redis-auth`: persistent Redis with AOF enabled. Stores accounts, tenant metadata, API-key hashes, and rate-limit buckets.
+- `redis-auth`: persistent Redis with AOF enabled. Stores demo tenant credentials and rate-limit buckets.
 - `redis-tenant`: isolated tenant data Redis. Uses Redis ACLs and only allows the gateway user to run the supported command set against `tenant:*` keys.
 - `redixis-api`: Go API service.
 - `prometheus`: scrapes `/metrics`.
@@ -22,10 +24,10 @@ Or use the Makefile:
 make compose-up
 ```
 
-Run the Go API locally while keeping Redis, Prometheus, and Grafana in containers:
+Run the Go API locally while keeping Redis in containers:
 
 ```bash
-docker compose up -d auth_redis tenant_redis prometheus grafana
+docker compose up -d auth_redis tenant_redis
 go run ./cmd/redixis
 ```
 
@@ -35,7 +37,7 @@ Or use the Makefile:
 make run
 ```
 
-Prometheus is configured to scrape `host.docker.internal:8080`, so the same setup works when the API runs on the host or when it runs in Compose and publishes port `8080`.
+The bundled Prometheus configuration scrapes `redixis_api:8080`, which means the provided Grafana and Prometheus setup assumes the API is running inside Compose. If you run the API directly on the host, Redis access still works with the default `localhost` URLs, but Prometheus scraping will need a target change.
 
 Useful URLs:
 
@@ -44,7 +46,7 @@ Useful URLs:
 - OpenAPI spec: `http://localhost:8080/openapi.yaml`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000`
-- Grafana login: `admin` / `password`
+- Grafana login: `admin` / `password` (local default)
 
 Override the Redis URLs when needed:
 
@@ -59,13 +61,15 @@ If you run the API directly on the host, the built-in defaults already point at 
 
 ## API
 
-Create a demo account and tenant:
+Create a demo tenant and API key:
 
 ```bash
 curl -s http://localhost:8080/auth/account \
   -H 'Content-Type: application/json' \
-  -d '{"username":"demo"}'
+  -d '{}'
 ```
+
+This endpoint is anonymous by design in this prototype. It is only there to bootstrap demo credentials for tenant-scoped commands.
 
 Run tenant commands:
 

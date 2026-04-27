@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: Redixis API
   version: 0.1.0
-  description: Multi-tenant Redis gateway API with account-scoped API keys and command allow-listing.
+  description: Prototype multi-tenant Redis gateway API with demo credential minting, account-scoped API keys, and command allow-listing.
 servers:
   - url: http://localhost:8080
     description: Local development
@@ -43,7 +43,7 @@ paths:
       tags:
         - Accounts
       summary: Create a tenant and API key
-      description: Allocates a tenant ID and returns the API key once.
+      description: Prototype-only bootstrap endpoint. Allocates a tenant ID and returns the API key once. There is no real signup or login flow behind this route.
       responses:
         "201":
           description: Account created
