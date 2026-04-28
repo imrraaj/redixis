@@ -100,3 +100,17 @@ Supported commands:
 - `GET /healthz`: process liveness.
 - `GET /readyz`: checks both Redis instances.
 - `GET /metrics`: Prometheus metrics.
+
+### Prometheus
+
+Prometheus scrapes the Redixis API metrics endpoint and exposes target health for the local stack.
+
+![Prometheus targets](grafana/prometheus_targets.png)
+
+### Grafana
+
+Grafana is provisioned with the Redixis dashboard for request, Redis, auth, and rate-limit visibility.
+
+![Grafana dashboard while testing](grafana/grafana_while_testing.png)
+
+![Grafana dashboard after testing](grafana/grafana_after_testing.png)
